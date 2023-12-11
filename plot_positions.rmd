@@ -1,0 +1,427 @@
+<!-- # --- -->
+title: "R Notebook"
+output: github_document
+---
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(ggthemes)
+library(patchwork)
+```
+
+```{r}
+project = '~/palaeoproteomics/BLG/analysis_results/'
+```
+
+# Define colors and BLG sequence
+
+```{r}
+
+aacols = c(
+    "V" = "#8bc34a",
+    #
+    "I" = "#66fff0",
+    "L" = "#009688",
+    "L/I" = "#009688",# Average of Ile and Leu
+    #
+    "F" = "#507351", #9c27b0
+    "C" = "#ffeb3b",
+    "M" = "#ffeb3b",
+    "A" = "#bdd54e",
+    "G" = "#9e9e9e",
+    "T" = "#ffc75e",
+    "W" = "#f49272", #673ab7
+    "S" = "#ffc107",
+    "Y" = "#30802f",
+    "P" = "#607d8b",
+    "H" = "#673ab7",
+    #
+    "Q" = "#faa49e",
+    "E" = "#f44336",
+    "Q/E" = "#f44336", # Average of Glu and Gln
+    #
+    "N" = "#f5a3be",
+    "D" = "#e81e63",
+    "N/D" = "#ee304c", # Average of Asp and Asn
+    #
+    "K" = "#701637",
+    "R" = "#bd3e04",  # 795548  ff5722   c28897
+    '-' = 'black'
+)
+
+```
+
+
+```{r}
+blg_seq = 'M,K,C,L,L,L,A,L,A,L,T,C,G,A,Q,A,L,I,V,T,Q,T,M,K,G,L,D,I,Q,K,V,A,G,T,W,Y,S,L,A,M,A,A,S,D,I,S,L,L,D,A,Q,S,A,P,L,R,V,Y,V,E,E\nQ,L,K,P,T,P,E,G,D,L,E,I,L,L,Q\nH,K,W,E,N,G\nD,E,C,A,Q,K,K,I,I,A,E,K,T,K,I,P,A,V,F,K,I,D,A,L,N,E,N,K,V,L,V,L,D,T,D,Y,K,K,Y,L,L,F,C,M,E,N,S,A,E,P,E,Q,S,L,A\nV,C,Q,C,L,V,R,T,P,E,V,D,D,E,A,L,E,K,F,D,K,A,L,K,A,L,P,M,H,I,R,L,S,F,N,P,T,Q,L,E,E,Q,C,H,I'
+
+blg_seq = strsplit(blg_seq, ',')[[1]]
+
+chain_start = 17
+chain_end = 178
+
+blg_seq = blg_seq[chain_start:length(blg_seq)]
+
+# names(blg_seq) = as.character(seq(1,178))
+# blg_seq
+
+
+```
+
+
+
+# *De novo*
+
+## Plot *de novo* coverage
+
+Change B for L/I
+       X for N/D
+       Z for Q/E
+
+
+
+```{r}
+denovo_position_letters = read_csv(file.path(project, 'denovo_position_letters.csv'))
+denovo_position_letters$pep_positions = as.integer(denovo_position_letters$pep_positions)
+
+denovo_position_letters = denovo_position_letters %>%
+  mutate(pep_letters = replace(pep_letters, pep_letters == 'B', 'L/I')) %>%
+  mutate(pep_letters = replace(pep_letters, pep_letters == 'X', 'N/D')) %>%
+  mutate(pep_letters = replace(pep_letters, pep_letters == 'Z', 'Q/E')) %>%
+  mutate(pep_positions = as.integer(pep_positions)) %>%
+  filter(pep_positions<=chain_end, pep_positions>=chain_start) %>%
+  separate('Run_id', into=c('Software', 'DB'), sep='_', remove = FALSE)
+
+denovo_position_letters
+  
+denovo_runs = unique(denovo_position_letters$Run_id)
+
+
+```
+
+```{r, fig.height=20}
+denovo_count_plots = list()
+
+for (run_id in denovo_runs) {
+  p1 = denovo_position_letters %>% dplyr::filter(Run_id == run_id) %>%
+    ggplot() +
+      geom_bar(mapping = aes(x=pep_positions, y=count_mirror, fill=pep_letters), position='stack', 
+               stat='identity') +
+      facet_wrap(~Sample, nrow=3, scales = 'fixed') +
+      scale_fill_manual(values=aacols) +
+      scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                         limits = c(chain_start, chain_end), expand = c(0, 0)) +
+      xlab('BLG sequence') + ylab('Count') +
+      guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+      theme_stata() +
+      theme(panel.grid.major.y = element_line(size=0.5),
+            legend.title = element_blank(), strip.text.x = element_text(size = 15),
+            plot.margin = margin(2, 5, 2, 5))
+    denovo_count_plots[[run_id]] = p1
+}
+
+```
+
+```{r, fig.width=17, fig.height=8}
+denovo_count_plots$directag_db1
+```
+
+```{r, fig.width=10, fig.height=1}
+denovo_legend = as_ggplot(
+  get_legend(denovo_count_plots$novor_db1))
+ggsave('denovo_legend.png', denovo_legend, 'png', project,
+       width=10, height=1, dpi=400)
+ggsave('denovo_legend.svg', denovo_legend, 'svg', project,
+       width=10, height=1, dpi=400)
+
+
+
+ggsave('novor_db1_cov.png', denovo_count_plots$novor_db1, 'png', project,
+       width=17, height=8, dpi=400)
+ggsave('novor_db1_cov.svg', denovo_count_plots$novor_db1, 'svg', project,
+       width=17, height=8, dpi=400)
+
+ggsave('directag_db1_cov.png', denovo_count_plots$directag_db1, 'png', project,
+       width=17, height=8, dpi=400)
+ggsave('directag_db1_cov.svg', denovo_count_plots$directag_db1, 'svg', project,
+       width=17, height=8, dpi=400)
+
+
+```
+
+
+```{r}
+denovo_position_letters = denovo_position_letters %>% group_by(Software, Sample) %>%
+  mutate(MAX = max(count_mirror), MIN = min(count_mirror))
+```
+
+
+```{r, fig.width=20, fig.height=30}
+ggplot(denovo_position_letters, aes(x=pep_positions, y=count_mirror, fill=pep_letters)) +
+  geom_bar(position='stack', stat='identity') +
+  geom_blank(aes(y=MAX)) + geom_blank(aes(y=MIN)) +
+  facet_grid(Sample + Software ~ DB, scales='free') +
+  scale_fill_manual(values=aacols) +
+  scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                     limits = c(chain_start, chain_end), expand = c(0, 0)) +
+  xlab('BLG sequence') + ylab('Count') +
+  guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+  theme_stata() +
+  theme(panel.grid.major.y = element_line(size=1),
+        legend.title = element_blank(),
+        strip.text = element_text(size = 12, margin = margin(0,0,0,0)),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(size=6),
+        plot.margin = margin(3,5,3,5),
+        legend.margin = margin(0,0,0,0),
+        strip.switch.pad.grid = unit(0, 'cm'),
+        strip.switch.pad.wrap = unit(0, 'cm'),
+        strip.placement = 'inside',
+        panel.spacing.y = unit(10, 'pt'))
+```
+
+
+## Plot accuracy per position
+
+```{r}
+denovo_position_acc = read_csv(file.path(project, 'denovo_position_accuracy.csv'))
+denovo_position_acc = denovo_position_acc %>%
+  mutate(pep_positions = as.integer(pep_positions)) %>%
+  filter(pep_positions<=chain_end, pep_positions>=chain_start) %>%
+  separate('Run_id', into=c('Software', 'DB'), sep='_', remove = FALSE)
+denovo_position_acc
+
+```
+
+
+```{r, fig.width=17, fig.height=8}
+
+colorBlindGrey8   <- c("#999999", "#E69F00", "#56B4E9", "#009E73", 
+                       "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+db1_acc = denovo_position_acc %>%
+  filter(DB == 'db1') %>%
+    ggplot() +
+      geom_bar(mapping = aes(x=pep_positions, y=pos_accuracy, fill=Software),
+               stat='identity', position='stack') +
+      facet_wrap(~Sample, nrow=3, scales='fixed') +
+      scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                         limits = c(chain_start, chain_end), expand=c(0,0)) +
+      xlab('BLG sequence') + ylab('Accuracy') +
+      scale_fill_manual(values=colorBlindGrey8) +
+      guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+      theme_stata() +
+      theme(panel.grid.major.y = element_line(size=0.5, color='black'),
+            legend.title = element_blank(), strip.text.x = element_text(size = 15))
+
+ggsave('db1_acc.png', db1_acc, 'png', project,
+       width=17, height=8, dpi=400)
+ggsave('db1_acc.svg', db1_acc, 'svg', project,
+       width=17, height=8, dpi=400)
+db1_acc
+
+acc_legend = as_ggplot(
+  get_legend(db1_acc))
+acc_legend
+ggsave('acc_legend.png', acc_legend, 'png', project,
+       width=3, height=1, dpi=400)
+ggsave('acc_legend.svg', acc_legend, 'svg', project,
+       width=3, height=1, dpi=400)
+
+db2_acc = denovo_position_acc %>%
+  ggplot() +
+      geom_bar(mapping = aes(x=pep_positions, y=pos_accuracy, fill=Software),
+               stat='identity', position='stack') +
+      facet_wrap(~Sample, nrow=3, scales='fixed') +
+      scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                         limits = c(chain_start, chain_end), expand=c(0,0)) +
+      xlab('BLG sequence') + ylab('Accuracy') +
+      scale_fill_manual(values=colorBlindGrey8) +
+      guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+      theme_stata() +
+      theme(panel.grid.major.y = element_line(size=0.5, color='black'),
+            legend.title = element_blank(), strip.text.x = element_text(size = 15))
+db2_acc
+
+
+all_acc = ggplot(denovo_position_acc) +
+    geom_bar(mapping = aes(x=pep_positions, y=pos_accuracy, fill=Run_id),
+             stat='identity', position='stack') +
+    facet_wrap(~Sample, nrow=3, scales='fixed') +
+    scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                       limits = c(chain_start, chain_end), expand=c(0,0)) +
+    xlab('BLG sequence') + ylab('Accuracy') +
+    guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+      theme_stata() +
+    theme(panel.grid.major.y = element_line(size=0.2),
+          legend.title = element_blank(), strip.text.x = element_text(size = 15))
+
+```
+
+
+```{r}
+
+
+denovo_acc_plots = list()
+
+for (run_id in denovo_runs) {
+  a = denovo_position_acc %>% dplyr::filter(Run_id == run_id)
+  p1 = ggplot(a) +
+    geom_bar(mapping = aes(x=pep_positions, y=pos_accuracy), stat='identity') +
+    facet_wrap(~Sample, nrow=3, scales='fixed') +
+    scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                       limits = c(chain_start, chain_end), expand=c(0,0)) +
+    xlab('BLG sequence') + ylab('Accuracy') +
+    theme_few() +
+    theme(panel.grid.major.y = element_line(size=0.2),
+          legend.title = element_blank(), strip.text.x = element_text(size = 15))
+  denovo_acc_plots[[run_id]] = p1
+}
+
+
+```
+
+```{r, fig.width=17, fig.height=8}
+denovo_acc_plots$pepnovo_db2
+
+```
+
+
+
+# Plot DB search coverage
+
+
+```{r}
+dbsearch_position_letters = read_csv(file.path(project, 'dbsearch_position_letters.csv'))
+dbsearch_runs = unique(dbsearch_position_letters$Run_id)
+
+```
+
+```{r}
+dbsearch_position_letters = dbsearch_position_letters %>% 
+  mutate(pep_positions = as.integer(pep_positions)) %>%
+  filter(pep_positions<=chain_end, pep_positions>=chain_start) %>%
+  arrange(desc(pep_positions))
+
+dbsearch_position_letters
+```
+
+
+
+
+
+```{r}
+plots_db_counts = list()
+
+for (run_id in dbsearch_runs) {
+  a = dbsearch_position_letters %>% dplyr::filter(Run_id == run_id)
+  p1 = ggplot(a) +
+    geom_bar(mapping = aes(x=pep_positions, y=count_mirror, fill=pep_letters), position='stack', 
+             stat='identity') +
+    facet_wrap(~Sample, nrow=3, scales='fixed') +
+    scale_fill_manual(values=aacols) +
+    scale_x_continuous(breaks = seq(chain_start, chain_end), labels = blg_seq,
+                       limits = c(chain_start, chain_end), expand=c(0,0)) +
+    xlab('BLG sequence') + ylab('Count') +
+    guides(fill=guide_legend(nrow=1,byrow=TRUE)) +
+    theme_stata() +
+    theme(panel.grid.major.y = element_line(size=0.5),
+          legend.title = element_blank(), strip.text.x = element_text(size = 15),
+          legend.position = 'bottom', legend.direction = 'horizontal')
+
+  plots_db_counts[[run_id]] = p1
+}
+```
+
+```{r, fig.width=17, fig.height=8}
+plots_db_counts$pf_st_db1
+plots_db_counts$fp_st_db1
+
+ggsave('pf_st_db1_cov.png', plots_db_counts$pf_st_db1, 'png', project,
+       width=17, height=8, dpi=400)
+ggsave('pf_st_db1_cov.svg', plots_db_counts$pf_st_db1, 'svg', project,
+       width=17, height=8, dpi=400)
+
+dbsearch_legend = as_ggplot(
+  get_legend(plots_db_counts$pf_st_db1))
+
+ggsave('dbsearch_legend.png', dbsearch_legend, 'png', project,
+       width=10, height=1, dpi=400)
+ggsave('dbsearch_legend.svg', dbsearch_legend, 'svg', project,
+       width=10, height=1, dpi=400)
+```
+
+# Arrange plots
+
+
+```{r, fig.width=12, fig.height=14}
+
+directag_db1_cov = denovo_count_plots$directag_db1 +
+  theme(strip.text.x = element_text(size=0),
+        legend.position = "none",
+        axis.title.x = element_blank(), axis.title.y = element_blank(),
+        plot.margin = margin(0, 0, 30, 0),
+        axis.text.x = element_text(size=7),
+        axis.text.y = element_text(angle=0, size=8),
+        plot.background = element_rect(fill = 'white'),
+        panel.background = element_rect(fill='azure'),
+        strip.background = element_rect(fill='azure'),
+        panel.spacing.y = unit(5, 'pt'),
+        panel.grid.major.y = element_line(size=0.5, color='lightblue'))
+
+novor_db1_cov = denovo_count_plots$novor_db2 +
+  scale_y_continuous(position='right') +
+  theme(strip.text.x = element_text(size=0),
+        legend.position = "none",
+        axis.title.x = element_blank(), axis.title.y = element_blank(),
+        plot.margin = margin(0, 0, 70, 0),
+        axis.text.x = element_text(size=7),
+        axis.text.y = element_text(angle=0, size=8),
+        plot.background = element_rect(fill = 'white'),
+        panel.background = element_rect(fill='azure'),
+        strip.background = element_rect(fill='azure'),
+        panel.spacing.y = unit(5, 'pt'),
+        panel.grid.major.y = element_line(size=0.5, color='lightblue'))
+
+db1_acc = db1_acc +
+  theme(strip.text.x = element_text(size=0),
+        legend.position = "none",
+        axis.title.x = element_blank(), axis.title.y = element_blank(),
+        plot.margin = margin(0, 0, 70, 0),
+        axis.text.x = element_text(size=7),
+        axis.text.y = element_text(angle=0, size=8),
+        plot.background = element_rect(fill = 'white'),
+        panel.background = element_rect(fill='azure'),
+        strip.background = element_rect(fill='azure'),
+        panel.spacing.y = unit(5, 'pt'),
+        panel.grid.major.y = element_line(size=0.5, color='lightblue'))
+
+pf_st_db1_cov = plots_db_counts$pf_st_db1 +
+  scale_y_continuous(position='right') +
+  theme(strip.text.x = element_text(size=0),
+        legend.position = "none",
+        axis.title.x = element_blank(), axis.title.y = element_blank(),
+        plot.margin = margin(0, 0, 10, 0),
+        axis.text.x = element_text(size=7),
+        axis.text.y = element_text(angle=0, size=8),
+        plot.background = element_rect(fill = 'white'),
+        panel.background = element_rect(fill='azure'),
+        strip.background = element_rect(fill='azure'),
+        panel.spacing.y = unit(5, 'pt'),
+        panel.grid.major.y = element_line(size=0.5, color='lightblue'))
+
+combomplot = directag_db1_cov + novor_db1_cov + db1_acc + pf_st_db1_cov +
+  plot_layout(ncol=1)
+combomplot
+
+ggsave('combo_plot.svg', combomplot, 'svg', project,
+       width=12, height=14, dpi=400)
+ggsave('combo_plot.png', combomplot, 'png', project,
+       width=12, height=14, dpi=400)
+
+
+```
+
