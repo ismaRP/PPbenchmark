@@ -1,6 +1,9 @@
 <!-- # --- -->
-title: "R Notebook"
-output: github_document
+title: "Plot positions"
+author: Ismael Rodriguez
+output:
+  github_document:
+    html_preview: false
 ---
 
 ```{r}
@@ -80,6 +83,9 @@ Change B for L/I
        X for N/D
        Z for Q/E
 
+```{r}
+denovo_position_letters
+```
 
 
 ```{r}
@@ -92,10 +98,11 @@ denovo_position_letters = denovo_position_letters %>%
   mutate(pep_letters = replace(pep_letters, pep_letters == 'Z', 'Q/E')) %>%
   mutate(pep_positions = as.integer(pep_positions)) %>%
   filter(pep_positions<=chain_end, pep_positions>=chain_start) %>%
+  mutate(Sample = factor(Sample, levels=c('0 days', '4 days', '128 days'))) %>%
   separate('Run_id', into=c('Software', 'DB'), sep='_', remove = FALSE)
 
 denovo_position_letters
-  
+
 denovo_runs = unique(denovo_position_letters$Run_id)
 
 
@@ -125,7 +132,14 @@ for (run_id in denovo_runs) {
 ```
 
 ```{r, fig.width=17, fig.height=8}
-denovo_count_plots$directag_db1
+denovo_count_plots$novor_db1
+```
+```{r, fig.width=17, fig.height=8}
+denovo_count_plots$pepnovo_db1
+```
+
+```{r, fig.width=17, fig.height=8}
+denovo_count_plots$pepnovo_db2
 ```
 
 ```{r, fig.width=10, fig.height=1}
@@ -143,9 +157,9 @@ ggsave('novor_db1_cov.png', denovo_count_plots$novor_db1, 'png', project,
 ggsave('novor_db1_cov.svg', denovo_count_plots$novor_db1, 'svg', project,
        width=17, height=8, dpi=400)
 
-ggsave('directag_db1_cov.png', denovo_count_plots$directag_db1, 'png', project,
+ggsave('pepnovo_db2_cov.png', denovo_count_plots$pepnovo_db2, 'png', project,
        width=17, height=8, dpi=400)
-ggsave('directag_db1_cov.svg', denovo_count_plots$directag_db1, 'svg', project,
+ggsave('pepnovo_db2_cov.svg', denovo_count_plots$pepnovo_db2, 'svg', project,
        width=17, height=8, dpi=400)
 
 
@@ -297,7 +311,6 @@ denovo_acc_plots$pepnovo_db2
 ```{r}
 dbsearch_position_letters = read_csv(file.path(project, 'dbsearch_position_letters.csv'))
 dbsearch_runs = unique(dbsearch_position_letters$Run_id)
-
 ```
 
 ```{r}
@@ -306,6 +319,11 @@ dbsearch_position_letters = dbsearch_position_letters %>%
   filter(pep_positions<=chain_end, pep_positions>=chain_start) %>%
   arrange(desc(pep_positions))
 
+dbsearch_position_letters$Sample[dbsearch_position_letters$Sample == 'N0000'] = '0 days'
+dbsearch_position_letters$Sample[dbsearch_position_letters$Sample == 'N0040'] = '4 days'
+dbsearch_position_letters$Sample[dbsearch_position_letters$Sample == 'N1280'] = '128 days'
+dbsearch_position_letters = dbsearch_position_letters %>%
+  mutate(Sample = factor(Sample, levels=c('0 days', '4 days', '128 days')))
 dbsearch_position_letters
 ```
 
